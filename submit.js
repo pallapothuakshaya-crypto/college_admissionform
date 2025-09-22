@@ -1,62 +1,37 @@
-import formidable from 'formidable';
-import fs from 'fs';
+import formidable from "formidable";
+import fs from "fs";
 
 export const config = {
   api: {
-    bodyParser: false
-  }
+    bodyParser: false, // let formidable handle file parsing
+  },
 };
 
+let submissions = [];
+
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' });
-    return;
-  }
+  if (req.method === "POST") {
+    const form = formidable({ multiples: false, uploadDir: "/tmp", keepExtensions: true });
 
-  const form = formidable({ multiples: false });
-
-  form.parse(req, async (err, fields, files) => {
-    if (err) {
-      console.error('form parse error', err);
-      res.status(500).json({ error: 'Form parse error' });
-      return;
-    }
-
-    try {
-      const photoFile = files.photo;
-      let photoDataUrl = '';
-
-      if (photoFile) {
-        // file path property differs across versions
-        const filePath = photoFile.filepath || photoFile.path || photoFile.file;
-        if (filePath && fs.existsSync(filePath)) {
-          const buffer = fs.readFileSync(filePath);
-          const mime = photoFile.mimetype || photoFile.type || 'image/png';
-          photoDataUrl = `data:${mime};base64,${buffer.toString('base64')}`;
-        }
+    form.parse(req, (err, fields, files) => {
+      if (err) {
+        res.status(500).json({ error: "Error parsing form" });
+        return;
       }
 
-      global.submissions = global.submissions || [];
       const submission = {
-        name: fields.name || '',
-        dob: fields.dob || '',
-        gender: fields.gender || '',
-        email: fields.email || '',
-        phone: fields.phone || '',
-        address: fields.address || '',
-        course: fields.course || '',
-        time: new Date().toISOString(),
-        photo: photoDataUrl
+        id: Date.now(),
+        ...fields,
+        photo: files.photo ? files.photo.filepath : null,
       };
 
-      global.submissions.push(submission);
-      console.log('New submission:', submission.name, submission.course, submission.time);
+      submissions.push(submission);
 
-      // Optional: Send email here via provider (not included)
-      res.status(200).json({ ok: true });
-    } catch (e) {
-      console.error(e);
-      res.status(500).json({ error: 'Server error' });
-    }
-  });
+      console.log("New submission:", submission);
+
+      res.status(200).json({ message: "Form submitted successfully!" });
+    });
+  } else {
+    res.status(405).json({ error: "Method not allowed" });
+  }
 }
